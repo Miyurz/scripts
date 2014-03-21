@@ -1,0 +1,26 @@
+#!/bin/bash
+
+git_command=$1
+
+if [ "${git_command}" == "tag" ]; then
+   echo "User is trying to tag"
+   if [ "$2" != "-a" ] && [ "$2" != "-m" ]
+   then
+      echo $?
+      echo lightweight
+      echo "Second option is not -a nor -m.So looks like user is trying to create a lighweight tag."
+      tag_message=$2
+      git tag -a ${tag_message} -m ""
+   else
+      echo $?
+      echo annotated
+      echo 2nd option is $2
+      echo 3rd option is $3
+      echo 4th option is $4
+      echo 5th option is $5
+      git tag $2 $3 $4 $5
+      echo "Second option is either -a or -m. So may be user is trying to create an annotated tag."
+   fi
+else
+  echo "User is not tagging."
+fi
