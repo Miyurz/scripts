@@ -26,15 +26,7 @@
 #	likely wish to download the RPM files into a directory that is
 #	not world writable (such as /usr/local/lib).
 #
-#	Usage:
 #
-#		rh-errata -v ver [-i] [-d dir] [-k kern] [-m user] [-n attempts]
-#
-#		rh-errata -v ver -r [-d dir] [-m user]
-#
-#		rh-errata -v ver -c [-d dir] [-m user]
-#
-#		rh-errata -h | --help
 #
 #	Options:
 #
@@ -50,96 +42,12 @@
 #				packages.
 #		-h, --help	Display this help message and exit.
 #
-#	Examples:
-#
-#		rh-errata -v 6.0
-#
-#			Retrieve all RPM files for version 6.0 that have not
-#			already been downloaded. Use this method if you wish
-#			to maintain a complete mirror of updates.  If the
-#			incoming directory /usr/local/lib/RH6.0-errata does
-#			not exist, the user will be prompted to create it.
-#
-#		rh-errata -v 6.0 -n 50
-#
-#			Like above, except attempt download 50 times with a
-#			one minute delay between attempts.  This is good for
-#			getting updates from busy sites.
-#
-#		rh-errata -v 6.2 -i
-#
-#			Retrieve RPM files for version 6.2 using "intelligent
-#			mode".  In this mode, rh-errata will only download
-#			packages that are installed on the machine running
-#			rh-errata.  The intelligent mode also sets the kernel
-#			architecture (overriding the -k option) automatically
-#			from the value return from the "arch" command.  Use
-#			intelligent mode if you are only maintaining a single
-#			machine.  If the incoming directory
-#			/usr/local/lib/RH6.2-errata does not exist, the user
-#			will be prompted to create it.
-#
-#		rh-errata -v 5.2 -r -m root
-#
-# 			Check which files in the 5.2 directory need to be
-#			installed and mail the report to the superuser.  If
-#			the incoming directory /usr/local/lib/RH5.2-errata
-#			does not exist, the script will terminate with an
-#			error.
-#
-#		rh-errata -v 6.2 -c
-#
-#			The "-c" option performs just like the "-r" option
-#			except that any package that is obsolete (meaning that
-#			there is newer package already installed) or corrupt
-#			(meaning that it fails the md5 checksum test) is 
-#			deleted from the respository.  This option is useful
-#			for cleaning out old stuff that will build up over time.
-#
-#		rh-errata -v 6.0 -k i686 -d $HOME/rpms
-#
-#			Retrieve RPM files for version 6.0 and kernel 
-#			architecture i686 and place them in
-#			$HOME/rpms/RH6.0-errata rather than the default
-#			directory /usr/local/lib/RH6.0-errata.  If the
-#			directory $HOME/rpms does not exist, the script will
-#			terminate with an error.
-#						
-#	Revisions:
-#
-#	01/02/2000	File created
-#	01/11/2000	Fixed typo
-#	03/04/2000	Changed default ftp site to ftp.freesoftware.com
-#       03/18/2000      Changed default ftp site to ftp.valinux.com
-#	06/27/2000	Added support for kernel architecture and noarch
-#	07/04/2000	Changed ftp site back to ftp.freesoftware.com
-#	07/21/2000	Changed ftp site back to ftp.valinux.com
-#	07/23/2000	Added *UNKNOWN* package status indicating that
-#			rpm crashed during an inquiry.  I see this problem
-#			on my 5.2 box. (1.0.1)
-#	11/23/2000	Added "intelligent mode" and made misc cleanups.
-#			(1.1.0)
-#	03/30/2001	Updated VA Linux ftp site path (1.1.1)
-#	04/01/2001	Added -c option to remove obsolete and corrupt
-#			packages from the respository. (1.2.0)
-#	09/29/2001	Changed default ftp site to ftp1.sourceforge.net
-#			as previous default is no longer available. (1.2.1)
-#	01/12/2002	Changed default ftp site to distro.ibiblio.org
-#			as previous default is no longer available (1.2.2)
-#	02/09/2002	Cosmetic fixes. (1.2.3)
-#	07/25/2002	Added -n option for multiple download attempts
-#			(1.2.4)
-#
-#	$Id: rh-errata,v 1.7 2002/07/28 12:50:08 bshotts Exp $
-###########################################################################
 
 
 ###########################################################################
 #	Constants
 ###########################################################################
 
-# Also see function retrieve_files (below) for constants specific to the
-# ftp site
 
 PROGNAME=$(basename $0)
 VERSION="1.2.4"
