@@ -1,0 +1,22 @@
+commit ae661bd6b93c6cfd6b16e0029355fd3a098a7fac
+Merge: 093729d be44d70
+Author: Mayur Nagekar <mayur.nagekar@gmail.com>
+Date:   Thu May 8 10:57:57 2014 +1000
+
+    Merge branch 'master' of github.com:Miyurz/test
+
+commit 093729d2010c33898cf182158f5f031bed8fcc43
+Author: Mayur Nagekar <mayur.nagekar@gmail.com>
+Date:   Thu May 8 10:57:14 2014 +1000
+
+    ssh_banner.sh can be invoked on every login to print machine
+    stats and product's information.
+    
+    yum_installer.sh script helps front end UI to query the latest packages
+    from central yum repository hosted within organisation and update them selectively or all
+
+commit be44d70435cb02110bad77ba476c9d0cc2353da3
+Author: Miyurz <mayur.nagekar@gmail.com>
+Date:   Thu May 8 10:42:32 2014 +1000
+
+    Update rpm_update.sh
