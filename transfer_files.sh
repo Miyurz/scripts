@@ -1,13 +1,14 @@
 #!/bin/bash
 
+LOG=/mnt/log
 
 func fetch {
 
-  #Get all the parameters 
+  #Get all the parameters
 
   IP=$1;
   filepath=$2
-  copy_to_this_dir=$3  
+  copy_to_this_dir=$3
 
   scp -r $(logname)@${IP}:${filename} . &> ${LOG}
   scp_status=$( echo $? )
@@ -25,5 +26,4 @@ func fetch {
     echo scp failed. might wanna take a look in the ${LOG}
     exit 1
   fi
-
 }
