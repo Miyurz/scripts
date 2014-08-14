@@ -9,7 +9,7 @@ fi
 
 k=$i
 
-echo "while loop"
+echo while loop
 time while [ $i -lt 10000 ]
 do
   i=$((i + 2))
@@ -26,4 +26,4 @@ do
    #echo $k
 done
 
-echo "last value is $k"
+echo last value is $k

@@ -1,8 +1,6 @@
 #!/bin/bash
 
-ls -1 ~/Release_tool 2> count.txt | wc -l > count.txt
-
-var=$(cut -d, -f1 count.txt)
+var=$(ls -1 ~/Release_tool  | wc -l)
 
 echo "No of files is $var"
 
