@@ -1,9 +1,0 @@
-#Extract commiter names here.
-commiters=$(git log --pretty=format:"%cn" $revs) #This should work in all git versions
-
-printf "$commiters\n" | while read name; do
-     if [[ $name == "root" ]]; then
-      echo "You are commiting as root user which I don't like. Reveal your identity!"
-      exit 1
-     fi
-done
