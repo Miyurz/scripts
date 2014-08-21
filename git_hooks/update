@@ -1,9 +1,10 @@
 #!/bin/sh
 #
-# An example hook script to blocks unannotated tags from entering.
+# update hook that would do basic security checks and then organisation specific policy checks
+# by calling and executing the appropriate scripts that have the logic implemented in them.
+
 # Called by "git receive-pack" with arguments: refname sha1-old sha1-new
-#
-# To enable this hook, rename this file to "update".
+
 #
 # Config
 # ------
