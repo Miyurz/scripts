@@ -13,15 +13,15 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
 
   # Every Vagrant virtual environment requires a box to build off of.
-  config.vm.box = "hashicorp/precise32"
+  config.vm.box = "ubuntu/trusty64"
 
   #Print Linux system details
-  config.vm.provision "shell" do |os|
+  config.vm.provision "shell", run: "always" do |os|
      os.inline = "echo UNAME IS ; uname -a"
   end
 
   #Print Ubuntu release details
-  config.vm.provision "shell" do |ubuntu_release|
+  config.vm.provision "shell", run: "always" do |ubuntu_release|
      ubuntu_release.inline = "lsb_release -a"
   end
 
@@ -38,7 +38,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       s.inline = "echo Installing debian packages now "
   end
 
- # Fixing mirror path as existing mirrors do not have some software packages.
+ # Fixing broken mirror paths as the existing mirrors do not have some of the required software packages.
  # Feel free to add other mirrors here as appropriate
   mirrors = ['deb mirror://mirrors.ubuntu.com/mirrors.txt precise main restricted universe multiverse',
             'deb mirror://mirrors.ubuntu.com/mirrors.txt precise-updates main restricted universe multiverse',
@@ -58,14 +58,22 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       s.privileged = "true"
   end
 
-  # Installing development packages from external debian/ubuntu repositories
-  packages = ['git', 'ruby', 'vim']
+  # Installing development packages from external debian/ubuntu repositories.
+  # I am not concerned about the version of these software packages so I am happy to take whatever
+  # is offered by the ubuntu/debian repositories.
+  # Feel free to add other packages as you feel appropriate for your development.
+  #
+  # NOTE : If you are looking for specific version only of any of the packages you wish to work with , then
+  #        you may want to download the debian packages, keep them in the directory development_packages and share it
+  #        as shown at the end of the script.
+  #
+  packages = ['git', 'ruby', 'vim', 'curl']
 
   #(1..3).each do |i|
   i = 1
       packages.each do |p|
           config.vm.provision "shell" do |s|
-	      s.inline = "echo #{i}. Installing #{p}; apt-get install -y #{p}"
+	      s.inline = "echo -e '-----------------\n #{i}. Installing #{p}\n -----------------' ; apt-get install -y #{p}"
 	      s.privileged = "true"
           end
 	  i += 1
@@ -93,7 +101,39 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   #     s.privileged = "true"
   #end
 
+  # Docker setup
+  #1 . Adding GPG public key
+  config.vm.provision "shell" do |d|
+     d.inline = "sh -c 'curl https://get.docker.io/gpg | apt-key add -' "
+     d.privileged = "true"
+  end
 
+  #2 . Adding repository path
+  config.vm.provision "shell" do |s|
+     s.inline = "echo deb http://get.docker.io/ubuntu docker main >> /etc/apt/sources.list"
+     s.privileged = "true"
+  end
+
+  config.vm.provision "shell" do |s|
+      s.inline = "apt-get update"
+      s.privileged = "true"
+  end
+
+  config.vm.provision "shell" do |s|
+      s.inline = "apt-get install -y docker"
+      s.privileged = "true"
+  end
+
+
+  config.vm.provision "docker" do |d|
+      d.pull_images "ubuntu"
+  end
+
+  config.vm.provision "docker" do |d|
+       d.run "ubuntu",
+         cmd: "ls -al",
+	 args: "-t -i --name='Test_container' "
+  end
 
 
   # The url from where the 'config.vm.box' box will be fetched if it
