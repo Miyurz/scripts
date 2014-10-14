@@ -1,5 +1,7 @@
 #!/usr/bin/ruby
 
+# Read more @ http://blog.rubybestpractices.com/posts/rklemme/003-The_Universe_between_begin_and_end.html
+
 begin
   $num1 = Integer(ARGV[0]) 
   $num2 = Integer(ARGV[1])
