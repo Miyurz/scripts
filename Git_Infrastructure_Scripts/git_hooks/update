@@ -1,10 +1,9 @@
 #!/bin/sh
 #
-# update hook that would do basic security checks and then organisation specific policy checks
-# by calling and executing the appropriate scripts that have the logic implemented in them.
-
+# An example hook script to blocks unannotated tags from entering.
 # Called by "git receive-pack" with arguments: refname sha1-old sha1-new
-
+#
+# To enable this hook, rename this file to "update".
 #
 # Config
 # ------
@@ -30,201 +29,36 @@
 
 # This script depends on certain tools,library packages and hence does a quick availability check 
 # with the function checkToolsInstalledorNot
-
-function getDirname {
-
-   SOURCE="${BASH_SOURCE[0]}"
-
-   while [ -h "$SOURCE" ]; 
-   do # resolve $SOURCE until the file is no longer a symlink
-      DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-      SOURCE="$(readlink "$SOURCE")"
-      [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" 
-      # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
-   done
-   
-   DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-   echo ${DIR}
-}
-
-function checkToolsInstalledorNot {
-
-  declare -a packages
-  # Add the packages check here.
-  packages=('git' 'ruby' 'java' )
-
-  for package in ${packages[@]} 
-  do
-      echo Checking if $package is installed.
-      which ${package} &> /dev/null && { echo -e "$package available\n"; } || { echo $package unavailable. Install it; exit 1;}
-  done
-}
-
-checkToolsInstalledorNot
+#set -x
 
 refname="$1"
 oldsha="$2"
 newsha="$3"
 
-underline=`tput smul`
-nounderline=`tput rmul`
-bold=$(tput bold)
-normal=`tput sgr0`
+######################################################
 
-NOREV=0000000000000000000000000000000000000000
+lock_branch_file="/mnt/hooks/lock_branch.txt"
 
-#echo "While loop"
-#while read oldsha newsha refname ; do
-    # deleting is always safe
+if [ -f $lock_branch_file ]; then
 
-BRANCH=$(git rev-parse --symbolic --abbrev-ref $refname)
-REPOSITORY=$(pwd)
-
-echo -e "\n\n-----------------------------------------------------------------------------------------------------------"
-echo -e "Updating branch ${underline}${bold}${BRANCH}${normal}${nounderline}. Existing commit: ${oldsha} "
-echo -e "\t\t\t\tTOT commit  :${newsha}"
-echo -----------------------------------------------------------------------------------------------------------
-#### Testing #####
-echo refname: ${refname}
-echo oldsha:  ${oldsha}
-echo newsha:  ${newsha}
-moveon=0
-
-    if [[ $newsha == $NOREV ]]; then
-        echo newsha = ${NOREV}
-        continue
-    fi
- 
-    # make log argument be "..$newsha" when creating new branch
-    if [[ $oldsha == $NOREV ]]; then
-       revs=$newsha
-    else
-       revs=$oldsha..$newsha
-    fi
-
-    echo revs: $revs
-
-    OLD_SHA_ID=${oldsha}
-    SHA_IDs=$(git log --pretty=format:"%H" --reverse $revs)
-
-    printf "$SHA_IDs\n" | while read SHA_ID; do
-            
-            echo -e "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-            echo ${underline}${bold}Commit SHA:${normal}${nounderline}     ${SHA_ID}
-            
-            COMMITTER_NAME=$(git show -s --format=%cn ${SHA_ID} )     
-            echo ${underline}${bold}Committer name:${normal}${nounderline} ${COMMITTER_NAME}
-
-	    PUSHING_ENTITY_NAME=$(id -un)
-	    echo ${underline}${bold}Pushing entity\'s name:${normal}${nounderline} ${PUSHING_ENTITY_NAME}
-            
-            # Security check here
-	    # Entity that tries to push must match the committer's identity(username). If not,
-	    # it may be that the gitconfig is not rightly configured to reflect the correct username
-            if [ '${COMMITTER_NAME}' == '${PUSHING_ENTITY_NAME}' ];
-	    then
-		echo "Entity push check passed"
-	    else
-		echo "ERROR: Entity trying to push doesn't match the commiter's user ID. Something fishy!"
-		exit 9
-		exit 9
-	    fi
-
-	    echo ${underline}${bold}Branch:${normal}${nounderline} ${BRANCH}
-
-            COMMIT_MESSAGE_SUBJECT=$(git show -s --format=%s ${SHA_ID} )
-            echo ${underline}${bold}Commit message:${normal}${nounderline} ${COMMIT_MESSAGE_SUBJECT}
-
-            #COMMIT_MESSAGE_ENCODING=$(git show -s --format=%e ${SHA_ID} )
-            #echo ${underline}${bold}Message encoding:${normal}${nounderline} ${COMMIT_MESSAGE_ENCODING}
-
-	    COMMIT_MESSAGE_BODY=$(git show -s --format=%b ${SHA_ID} )
-            echo ${underline}${bold}Message body:${normal}${nounderline} ${COMMIT_MESSAGE_BODY}
-
-            #In the first iteration, oldsha would be the one in the remote repository
-            #In subsequent iterations, old sha will be the previous SHA_ID, i.e., SHA_ID for the previous run      
-            echo Running: git diff --name-status $OLD_SHA_ID..$SHA_ID
-            #declare -a FILES
-            FILES=$(git diff --name-status $OLD_SHA_ID..$SHA_ID )
-            echo ${underline}${bold}Files for checkin:${normal}${nounderline} 
-
-             i=0
-             for var in $FILES
-             do
-               if [ "$i" == "0" ];
-               then
-                   #echo This is mode
-                   Mode=$var
-                   i=1
-               else
-                   #echo This is file
-                   File=$var
-                   ModeAndFile="${Mode}   ${File}"
-                   echo $ModeAndFile
-                   i=0
-               fi
-             done
-
-            # Now call checkinguard.rb with required arguments
-            #echo $(pwd)
-            REPOSITORY=$(pwd)
-
-            #echo Feeding checkinguard.rb the following parameters ...
-            #echo ${SHA_ID} ${BRANCH} ${REPOSITORY} ${FILES} ${COMMITTER_NAME}  
-            #echo Running /usr/bin/ruby hooks/checkinguard.rb ${SHA_ID} ${BRANCH} ${REPOSITORY} "${FILES[@]}" ${COMMITTER_NAME} 
-            if ! /usr/bin/ruby hooks/checkinguard.rb ${SHA_ID} ${BRANCH} ${REPOSITORY} "${FILES[@]}" ${COMMITTER_NAME}
-            then
-		echo hook detected an issue in checkinguard.rb
-		exit 2
-		exit 2
-            fi
-            
-	    if ! /usr/bin/ruby -W0 hooks/Checkinmgmt.thor jirachecks "${SHA_ID}" "${REPOSITORY}" "${FILES[@]}" "${COMMITTER_NAME}" "${BRANCH}" 
-            then
-		echo "hook detected an issue in jiracheck.rb"
-		exit 3
-		exit 3
-            fi
-
-            OLD_SHA_ID=${SHA_ID}
-
-            ## Hook scripts in turn invoke scripts that check for certain polices and standards and action
-            ## accordingly.
-            echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-    done
-#done
-
-#Uncomment below if you want to test the hook
-#exit 1
-moveon=$?
-#echo moveon value is ${moveon}
-
-if [ "${moveon}" -eq "0"  ]; then
-    echo "Looks like all hooks passed"
-    exit 0;
-elif [ "${moveon}" -eq "2"  ]; then
-    exit 2;
-elif [ "${moveon}" -eq "3"  ]; then
-    exit 3;
-elif [ "${moveon}" -eq "9" ];then
-    echo "Security check failed!"
-    exit 9;
-fi
-
-#########################
-
-GIT_DIR=${REPOSITORY}
-
-# --- Safety check
-if [ -z "$GIT_DIR" ]; then
-	echo "Don't run this script from the command line." >&2
-	echo " (if you want, you could supply GIT_DIR then run" >&2
-	echo "  $0 <ref> <oldrev> <newrev>)" >&2
+ for branch in $(cat $lock_branch_file)
+  do
+    #echo Branch is $branch
+    if [[ $refname == "${branch}" ]]
+    then
+	echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	echo "You cannot push to $refname branch! It's locked"
+	echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 	exit 1
+    fi
+ done
+
+else
+   echo "$lock_branch_file does not exist"
 fi
 
 if [ -z "$refname" -o -z "$oldsha" -o -z "$newsha" ]; then
-	echo "usage: $0 <ref> <oldrev> <newrev>" >&2
+	echo "Usage: $0 <ref> <oldrev> <newrev>" >&2
 	exit 1
 fi
 
@@ -235,27 +69,32 @@ denycreatebranch=$(git config --bool hooks.denycreatebranch)
 allowdeletetag=$(git config --bool hooks.allowdeletetag)
 allowmodifytag=$(git config --bool hooks.allowmodifytag)
 
-# check for no description
-projectdesc=$(sed -e '1q' "$GIT_DIR/description")
-case "$projectdesc" in
-"Unnamed repository"* | "")
-	echo "*** Project description file hasn't been set" >&2
-	exit 1
-	;;
-esac
+echo -e "allowunannotated = ${allowunannotated} \n \
+         allowdeletebranch = ${allowdeletebranch} \n \
+         denycreatebranch = ${denycreatebranch} \n \
+         allowdeletetag = ${allowdeletetag} \n \
+         allowmodifytag = ${allowmodifytag}"
 
 # --- Check types
 # if $newrev is 0000...0000, it's a commit to delete a ref.
 zero="0000000000000000000000000000000000000000"
-if [ "$newrev" = "$zero" ]; then
+if [ "$newsha" = "$zero" ]; then
 	newrev_type=delete
 else
-	newrev_type=$(git cat-file -t $newrev)
+	newrev_type=$(git cat-file -t $newsha)
 fi
+
+echo newrev_type : ${newrev_type}
+echo refname : ${refname}
+
+#Pushing entity
+PUSHING_ENTITY_NAME=$(id -un)
+
 
 case "$refname","$newrev_type" in
 	refs/tags/*,commit)
 		# un-annotated tag
+		echo Allowing unannotated tag
 		short_refname=${refname##refs/tags/}
 		if [ "$allowunannotated" != "true" ]; then
 			echo "*** The un-annotated tag, $short_refname, is not allowed in this repository" >&2
@@ -265,6 +104,7 @@ case "$refname","$newrev_type" in
 		;;
 	refs/tags/*,delete)
 		# delete tag
+		echo Deleting tag
 		if [ "$allowdeletetag" != "true" ]; then
 			echo "*** Deleting a tag is not allowed in this repository" >&2
 			exit 1
@@ -272,6 +112,7 @@ case "$refname","$newrev_type" in
 		;;
 	refs/tags/*,tag)
 		# annotated tag
+		echo "Modifying annotated tag $refname"
 		if [ "$allowmodifytag" != "true" ] && git rev-parse $refname > /dev/null 2>&1
 		then
 			echo "*** Tag '$refname' already exists." >&2
@@ -281,27 +122,196 @@ case "$refname","$newrev_type" in
 		;;
 	refs/heads/*,commit)
 		# branch
-		if [ "$oldrev" = "$zero" -a "$denycreatebranch" = "true" ]; then
-                # branch can be created by only authorised members
-			echo "*** Creating a branch is not allowed in this repository" >&2
+		echo "Branch operation: Either a commit in an existing branch or a new branch is being pushed !"
+		if [ "$oldsha" = "$zero" -a "$denycreatebranch" = "true" ]; then
+		# branch can be created by only authorised members
+		   if [ "${PUSHING_ENTITY_NAME}" == "mayur.n" ]; then
+		       echo "****** WARNING : It looks like the entity trying to create the branch is mayur.n. ALLOWING it ******" >&2
+		   else
+		        echo "oldsha :  $oldsha"
+		        echo "***** ERROR: Branch can be created by only authorised members *****"
 			exit 1
-		fi
+		   fi
+	       else
+		   echo "Committing in existing branch"
+		   #exit 1
+               ########################################################################################################
+
+                   underline=`tput smul`
+                   nounderline=`tput rmul`
+                   bold=$(tput bold)
+                   normal=`tput sgr0`
+
+                   NOREV=0000000000000000000000000000000000000000
+
+                   BRANCH=$(git rev-parse --symbolic --abbrev-ref $refname)
+                   REPOSITORY=$(pwd)
+
+                   echo -e "\n\n---------------------------------------------------------------------------------------------"
+                   echo -e "Updating branch ${underline}${bold}${BRANCH}${normal}${nounderline}. Existing commit: ${oldsha} "
+                   echo -e "\t\t\t\tTOT commit  :${newsha}"
+                   echo "-----------------------------------------------------------------------------------------------------------"
+
+		   #### Testing #####
+                   echo Branch: ${refname}
+                   echo oldsha:  ${oldsha}
+                   echo newsha:  ${newsha}
+
+		   moveon=0
+
+                   if [[ $newsha == $NOREV ]]; then
+                      echo newsha = ${NOREV}
+                      continue
+                   fi
+ 
+                   # make log argument be "..$newsha" when creating new branch
+                   if [[ $oldsha == $NOREV ]]; then
+                       revs=$newsha
+                   else
+                       revs=$oldsha..$newsha
+                   fi
+
+                   echo revs: $revs
+
+                   OLD_SHA_ID=${oldsha}
+                
+		   SHA_IDs=$(git log --pretty=format:"%H" --reverse $revs)
+                
+		   #Also can use 
+                   #SHA_IDs=$(git rev-list $revs)
+                   #http://git-scm.com/book/en/v2/Customizing-Git-An-Example-Git-Enforced-Policy
+
+                   printf "$SHA_IDs\n" | while read SHA_ID; do
+            
+                              echo -e "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                              echo ${underline}${bold}Commit SHA:${normal}${nounderline}     ${SHA_ID}
+            
+                              COMMITTER_NAME=$(git show -s --format=%cn ${SHA_ID} )     
+                              echo ${underline}${bold}Committer name:${normal}${nounderline} ${COMMITTER_NAME}
+
+	                      if [ "${COMMITTER_NAME}" == "" ]; then
+		              #temporary fix. letting author=committer
+		                COMMITTER_NAME=$(git show -s --format=%an ${SHA_ID} )
+	                      fi
+
+	                      #PUSHING_ENTITY_NAME=$(id -un)
+	                      echo ${underline}${bold}Pushing entity\'s name:${normal}${nounderline} ${PUSHING_ENTITY_NAME}
+            
+                              # Security check here
+	                      # Entity that tries to push must match the committer's identity(username). If not,
+	                      # it may be that the gitconfig is not rightly configured to reflect the correct username
+
+                              if [ "${COMMITTER_NAME}" == "${PUSHING_ENTITY_NAME}" ];
+	                      then
+		                 echo Entity push check passed
+	                      else
+                                 DEV_LEADS=("mayur.n" "shailesh.p" "roshan.n")
+		                 if [[ ${DEV_LEADS[*]} =~ "${PUSHING_ENTITY_NAME}" ]]
+		                 then
+		                    echo *** WARNING: Looks like Dev lead,${PUSHING_ENTITY_NAME} is trying to cross merge branches ***
+		                    #exit 10
+		                    #exit 10
+		                 else
+		                    echo **** ERROR: Entity trying to push does not match the commiter\'s user ID. Something fishy! ****
+		                    exit 9
+		                    exit 9
+		                 fi
+	                      fi
+
+	                      echo ${underline}${bold}Branch:${normal}${nounderline} ${BRANCH}
+
+                              COMMIT_MESSAGE_SUBJECT=$(git show -s --format=%s ${SHA_ID} )
+                              echo ${underline}${bold}Commit message:${normal}${nounderline} ${COMMIT_MESSAGE_SUBJECT}
+
+	                      COMMIT_MESSAGE_BODY=$(git show -s --format=%b ${SHA_ID} )
+                              echo ${underline}${bold}Message body:${normal}${nounderline} ${COMMIT_MESSAGE_BODY}
+
+                              #In the first iteration, oldsha would be the one in the remote repository
+                              #In subsequent iterations, old sha will be the previous SHA_ID, i.e., SHA_ID for the previous run      
+                              #echo Running: git diff --name-status $OLD_SHA_ID..$SHA_ID
+                              echo Running: git show --pretty="format:" --name-only $SHA_ID
+	    
+	                      #declare -a FILES
+                              #FILES=$(git diff --name-status $OLD_SHA_ID..$SHA_ID )
+                              FILES=$(git show --pretty="format:" --name-status $SHA_ID )
+            
+	                      echo ${underline}${bold}Files for checkin:${normal}${nounderline} 
+
+                              #echo $(pwd)
+                              REPOSITORY=$(pwd)
+
+                              #echo Feeding checkinguard.rb the following parameters ...
+                              #echo ${SHA_ID} ${BRANCH} ${REPOSITORY} ${FILES} ${COMMITTER_NAME}  
+                              #echo Running /usr/bin/ruby hooks/checkinguard.rb ${SHA_ID} ${BRANCH} ${REPOSITORY} "${FILES[@]}" ${COMMITTER_NAME} 
+                              if ! /usr/bin/ruby hooks/checkinguard.rb ${SHA_ID} ${BRANCH} ${REPOSITORY} "${FILES[@]}" ${COMMITTER_NAME}
+                              then
+		                  echo hook detected an issue in checkinguard.rb
+		                  exit 2
+		                  exit 2
+	                      else
+		                  echo checkinguard.rb seems happy!
+	                      fi
+           
+	                      #-W0 turns off warning messages that go to stdout
+	                      #if ! /usr/bin/ruby -W0 hooks/Checkinmgmt.thor jirachecks "${SHA_ID}" "${REPOSITORY}" "${FILES[@]}" "${COMMITTER_NAME}" "${BRANCH}" 
+                              #then
+	                      #	echo "hook detected an issue in jiracheck.rb"
+	                      #	exit 3
+	                      #	exit 3
+                              #   fi
+
+                              echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+                   done
+                   #done
+
+                   #Uncomment below if you want to test the hook
+                   #exit 1
+                   moveon=$?
+                   #echo moveon value is ${moveon}
+
+                   if [ "${moveon}" -eq "0"  ]; then
+                      echo "****** SUCCESS : Push successful *****"
+                      exit 0;
+                   elif [ "${moveon}" -eq "2"  ]; then
+                      exit 2;
+                   elif [ "${moveon}" -eq "3"  ]; then
+                      exit 3;
+                   elif [ "${moveon}" -eq "9" ];then
+                      echo "Security check failed!"
+                      exit 9;
+                   elif [ "${moveon}" -eq "10" ];then
+                      echo "Cross merge across branches by dev lead!"
+                      exit 10;
+                   fi
+                ######################################################################################################################
+	        fi
 		;;
 	refs/heads/*,delete)
-		# branch can be deleted only after [ approval is obtained ] && [ by restricted members ]
+	        echo "Deleting a branch"
+		# branch can be deleted only after [ approval is obtained ] && [ by restricted members ]	
 		if [ "$allowdeletebranch" != "true" ]; then
-			echo "*** Deleting a branch is not allowed in this repository" >&2
-			exit 1
+		   if [ "${PUSHING_ENTITY_NAME}" == "mayur.n" ]; then
+		       echo "****** WARNING : It looks like the entity deleting the branch is mayur.n. ALLOWING it ******" >&2
+		   else
+		       echo "***** ERROR: Deleting a tracking branch is not allowed in this repository *****" >&2
+		       exit 1
+		   fi
 		fi
 		;;
 	refs/remotes/*,commit)
 		# tracking branch
+		echo "Tracking branch."
 		;;
 	refs/remotes/*,delete)
 		# delete tracking branch
+		echo "Deleting an already tracked branch"
 		if [ "$allowdeletebranch" != "true" ]; then
-			echo "*** Deleting a tracking branch is not allowed in this repository" >&2
-			exit 1
+		   if [ "PUSHING_ENTITY_NAME" == "mayur.n" ]; then
+		       echo "****** WARNING : It looks like the entity deleting the branch is mayur.n. ALLOWING it ******" >&2
+		   else
+		       echo "***** ERROR: Deleting a tracking branch is not allowed in this repository *****" >&2
+		       exit 1
+		   fi
 		fi
 		;;
 	*)
