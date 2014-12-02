@@ -3,7 +3,6 @@
 # An example hook script to blocks unannotated tags from entering.
 # Called by "git receive-pack" with arguments: refname sha1-old sha1-new
 #
-# To enable this hook, rename this file to "update".
 #
 # Config
 # ------
@@ -30,11 +29,42 @@
 # This script depends on certain tools,library packages and hence does a quick availability check 
 # with the function checkToolsInstalledorNot
 #set -x
+#!/bin/bash
+
 
 refname="$1"
 oldsha="$2"
 newsha="$3"
 
+
+######################################################
+function memberTest(){
+
+  if [[ $1 == "devops_team" ]]; then
+     team="/mnt/hooks/devops.txt"
+  elif [[ $1 == "devleads" ]]; then
+     team="/mnt/hooks/devleads.txt"
+  fi
+
+  if [ -f $team ]; then
+    PUSHING_ENTITY_NAME=$(id -un)
+    
+    for member in $(cat $team)
+    do
+      echo member is $member
+      if [[ $PUSHING_ENTITY_NAME == "${member}" ]]
+      then
+        return 0
+      fi
+    done
+ 
+    return 1
+
+  else
+     echo "$team does not exist"
+     return 1
+  fi
+}
 ######################################################
 
 lock_branch_file="/mnt/hooks/lock_branch.txt"
@@ -46,6 +76,8 @@ if [ -f $lock_branch_file ]; then
     #echo Branch is $branch
     if [[ $refname == "${branch}" ]]
     then
+	#### Privileged users need to be able to push ####
+	# Add the provision for it here #
 	echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 	echo "You cannot push to $refname branch! It's locked"
 	echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
@@ -106,8 +138,14 @@ case "$refname","$newrev_type" in
 		# delete tag
 		echo Deleting tag
 		if [ "$allowdeletetag" != "true" ]; then
-			echo "*** Deleting a tag is not allowed in this repository" >&2
-			exit 1
+                    memberTest devops_team
+                    res=$?
+		   if [[ $res -eq "0" ]]; then
+		      echo "*** WARNING: Letting ${PUSHING_ENTITY_NAME} delete an older tag in remote repo"
+		    else
+		       echo "*** Deleting a tag is not allowed in this repository" >&2
+		       exit 1
+		    fi
 		fi
 		;;
 	refs/tags/*,tag)
@@ -125,8 +163,12 @@ case "$refname","$newrev_type" in
 		echo "Branch operation: Either a commit in an existing branch or a new branch is being pushed !"
 		if [ "$oldsha" = "$zero" -a "$denycreatebranch" = "true" ]; then
 		# branch can be created by only authorised members
-		   if [ "${PUSHING_ENTITY_NAME}" == "mayur.n" ]; then
-		       echo "****** WARNING : It looks like the entity trying to create the branch is mayur.n. ALLOWING it ******" >&2
+                    memberTest devops_team
+                    res=$?
+		   echo res is $res
+                   sleep 3
+                   if [[ $res -eq "0" ]]; then
+		       echo "****** WARNING : It looks like the entity trying to create the branch is ${PUSHING_ENTITY_NAME}. ALLOWING it ******" >&2
 		   else
 		        echo "oldsha :  $oldsha"
 		        echo "***** ERROR: Branch can be created by only authorised members *****"
@@ -205,11 +247,14 @@ case "$refname","$newrev_type" in
 	                      then
 		                 echo Entity push check passed
 	                      else
-                                 DEV_LEADS=("mayur.n" "shailesh.p" "roshan.n")
-		                 if [[ ${DEV_LEADS[*]} =~ "${PUSHING_ENTITY_NAME}" ]]
+                                 memberTest devleads
+                                 res=$?
+		                 echo Res is $res
+                                 if [[ $res -eq "0" ]]
 		                 then
 		                    echo *** WARNING: Looks like Dev lead,${PUSHING_ENTITY_NAME} is trying to cross merge branches ***
-		                    #exit 10
+		                    sleep 3
+				    #exit 10
 		                    #exit 10
 		                 else
 		                    echo **** ERROR: Entity trying to push does not match the commiter\'s user ID. Something fishy! ****
@@ -235,7 +280,7 @@ case "$refname","$newrev_type" in
                               #FILES=$(git diff --name-status $OLD_SHA_ID..$SHA_ID )
                               FILES=$(git show --pretty="format:" --name-status $SHA_ID )
             
-	                      echo ${underline}${bold}Files for checkin:${normal}${nounderline} 
+	                      echo ${underline}${bold}Files for checkin:${normal}${nounderline} ${FILES[@]} 
 
                               #echo $(pwd)
                               REPOSITORY=$(pwd)
@@ -243,7 +288,10 @@ case "$refname","$newrev_type" in
                               #echo Feeding checkinguard.rb the following parameters ...
                               #echo ${SHA_ID} ${BRANCH} ${REPOSITORY} ${FILES} ${COMMITTER_NAME}  
                               #echo Running /usr/bin/ruby hooks/checkinguard.rb ${SHA_ID} ${BRANCH} ${REPOSITORY} "${FILES[@]}" ${COMMITTER_NAME} 
-                              if ! /usr/bin/ruby hooks/checkinguard.rb ${SHA_ID} ${BRANCH} ${REPOSITORY} "${FILES[@]}" ${COMMITTER_NAME}
+                              
+
+			function checkinguard {
+			      if ! /usr/bin/ruby hooks/checkinguard.rb ${SHA_ID} ${BRANCH} ${REPOSITORY} "${FILES[@]}" ${COMMITTER_NAME}
                               then
 		                  echo hook detected an issue in checkinguard.rb
 		                  exit 2
@@ -251,6 +299,10 @@ case "$refname","$newrev_type" in
 	                      else
 		                  echo checkinguard.rb seems happy!
 	                      fi
+
+		        }
+
+			checkinguard
            
 	                      #-W0 turns off warning messages that go to stdout
 	                      #if ! /usr/bin/ruby -W0 hooks/Checkinmgmt.thor jirachecks "${SHA_ID}" "${REPOSITORY}" "${FILES[@]}" "${COMMITTER_NAME}" "${BRANCH}" 
@@ -290,8 +342,11 @@ case "$refname","$newrev_type" in
 	        echo "Deleting a branch"
 		# branch can be deleted only after [ approval is obtained ] && [ by restricted members ]	
 		if [ "$allowdeletebranch" != "true" ]; then
-		   if [ "${PUSHING_ENTITY_NAME}" == "mayur.n" ]; then
-		       echo "****** WARNING : It looks like the entity deleting the branch is mayur.n. ALLOWING it ******" >&2
+                    memberTest devops_team
+                    res=$?
+		   
+                    if [[ $res -eq "0" ]]; then
+		       echo "****** WARNING : It looks like the entity deleting the branch is ${PUSHING_ENTITY_NAME}. ALLOWING it ******" >&2
 		   else
 		       echo "***** ERROR: Deleting a tracking branch is not allowed in this repository *****" >&2
 		       exit 1
@@ -306,8 +361,10 @@ case "$refname","$newrev_type" in
 		# delete tracking branch
 		echo "Deleting an already tracked branch"
 		if [ "$allowdeletebranch" != "true" ]; then
-		   if [ "PUSHING_ENTITY_NAME" == "mayur.n" ]; then
-		       echo "****** WARNING : It looks like the entity deleting the branch is mayur.n. ALLOWING it ******" >&2
+                   memberTest devops_team
+                   res=$?
+		   if [[ $res -eq "0" ]]; then
+		       echo "****** WARNING : It looks like the entity deleting the branch is ${PUSHING_ENTITY_NAME}. ALLOWING it ******" >&2
 		   else
 		       echo "***** ERROR: Deleting a tracking branch is not allowed in this repository *****" >&2
 		       exit 1
