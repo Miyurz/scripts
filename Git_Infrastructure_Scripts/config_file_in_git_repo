@@ -1,0 +1,17 @@
+[core]
+        repositoryformatversion = 0
+        filemode = true
+        bare = true
+        sharedRepository = true
+[remote "origin"]
+        url = /home/mayur.n/Migration
+[receive]
+        denyNonFastForwards = true
+[hooks]
+        denycreatebranch = true
+        allowdeletetag = false
+        allowmodifytag = false
+        allowdeletebranch = false
+        allowunannotated = false
+        mailinglist = "developers@org.flowdock.com,mayur.nagekar@gmail.com"
+        announcelist = "mayur.nagekar@gmail.com"
