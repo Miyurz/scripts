@@ -6,6 +6,9 @@ RUN sudo apt-get install -y curl
 RUN curl -sL https://deb.nodesource.com/setup_4.x | sudo -E bash -
 RUN sudo apt-get install -y nodejs
 
+#Install Python
+RUN apt-get install -y python build-essential
+
 # Create app directory
 #RUN mkdir -p /usr/src/app
 #WORKDIR /usr/src/app
